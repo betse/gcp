@@ -1,0 +1,74 @@
+name: 'Terraform CI/CD'
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  terraform-plan-apply:
+    name: 'Terraform Plan and Apply'
+    runs-on: ubuntu-latest
+    env:
+      TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+    steps:
+      # 1. Checkout the repository code
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Authenticate to Google Cloud
+      - name: Google Auth
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      # 3. Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # 4. Initialize Terraform
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./iac # <--- ADD THIS LINE
+
+      # 5. Generate a Terraform Plan on Pull Requests
+      - name: Terraform Plan
+        if: github.event_name == 'pull_request'
+        run: terraform plan -no-color
+        working-directory: ./iac # <--- ADD THIS LINE
+
+      # 6. Apply Terraform changes on merge to main
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve
+        working-directory: ./iac # <--- ADD THIS LINE
+
+  terraform-destroy:
+    name: 'Terraform Destroy'
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Google Auth
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./iac # <--- ADD THIS LINE
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve
+        working-directory: ./iac # <--- ADD THIS LINE
